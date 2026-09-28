@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Flame, Award, BookOpen, Code2, Play, BarChart3, Clock } from 'lucide-react';
+import { Sparkles, Flame, Award, BookOpen, Code2, Play, BarChart3, Clock, Bot } from 'lucide-react';
 import { UserProgress } from '../types';
 
 interface NavbarProps {
@@ -8,6 +8,7 @@ interface NavbarProps {
   progress: UserProgress;
   onOpenDailySprint: () => void;
   onOpenAiGenerator: () => void;
+  onOpenN8nChat?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -16,6 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   progress,
   onOpenDailySprint,
   onOpenAiGenerator,
+  onOpenN8nChat,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
@@ -87,7 +89,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Zone 3: 1-2 primary actions and user progress meters */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* n8n Chatbot Button */}
+          {onOpenN8nChat && (
+            <button
+              onClick={onOpenN8nChat}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-pink-300 bg-pink-500/10 border border-pink-500/20 rounded-md hover:bg-pink-500/20 transition-colors"
+              title="Open n8n AI Chatbot (amrutha07.app.n8n.cloud)"
+            >
+              <Bot className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">n8n Chat</span>
+            </button>
+          )}
+
           {/* Daily Sprint Button */}
           <button
             onClick={onOpenDailySprint}
@@ -123,3 +137,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+

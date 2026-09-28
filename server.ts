@@ -333,6 +333,149 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'CodeZenith Smart Learning Portal', aiEnabled: hasApiKey });
 });
 
+// Endpoint to export the portal's entire training corpus for AI agents
+app.get('/api/dataset', async (_req: Request, res: Response) => {
+  try {
+    const fs = await import('fs/promises');
+    const datasetPath = path.resolve(__dirname, 'public', 'dataset.json');
+    const content = await fs.readFile(datasetPath, 'utf-8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(content);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load dataset' });
+  }
+});
+
+// 6. External n8n AI Chatbot Proxy Endpoint
+const N8N_WEBHOOK_URL =
+  process.env.N8N_WEBHOOK_URL ||
+  'https://amrutha07.app.n8n.cloud/webhook/5261f30b-5ee4-44ac-9bf3-fe49c7fd82c4/chat';
+
+async function sendToN8n(url: string, payload: any) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const contentType = resp.headers.get('content-type') || '';
+  let data: any;
+  if (contentType.includes('application/json')) {
+    data = await resp.json();
+  } else {
+    const text = await resp.text();
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { output: text };
+    }
+  }
+
+  return { ok: resp.ok, status: resp.status, data };
+}
+
+app.post('/api/n8n/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, chatInput, sessionId, context } = req.body;
+    const textToSend = chatInput || message || '';
+
+    if (!textToSend.trim()) {
+      return res.status(400).json({ error: 'Message cannot be empty' });
+    }
+
+    const currentSessionId = sessionId || `session-${Date.now()}`;
+
+    // Attempt 1: Standard n8n Chat Trigger format
+    let n8nResult = await sendToN8n(N8N_WEBHOOK_URL, {
+      action: 'sendMessage',
+      sessionId: currentSessionId,
+      chatInput: textToSend,
+    });
+
+    // Attempt 2: If Attempt 1 failed, try simplified chatInput
+    if (!n8nResult.ok || (n8nResult.data && n8nResult.data.message === 'Error in workflow')) {
+      n8nResult = await sendToN8n(N8N_WEBHOOK_URL, {
+        chatInput: textToSend,
+        sessionId: currentSessionId,
+      });
+    }
+
+    // Check if n8n returned a successful output
+    if (n8nResult.ok && n8nResult.data && n8nResult.data.message !== 'Error in workflow') {
+      let extractedText = '';
+      const responseData = n8nResult.data;
+      if (typeof responseData === 'string') {
+        extractedText = responseData;
+      } else if (Array.isArray(responseData)) {
+        extractedText = responseData
+          .map(item => item.output || item.text || item.message || JSON.stringify(item))
+          .join('\n');
+      } else if (typeof responseData === 'object' && responseData !== null) {
+        extractedText =
+          responseData.output ||
+          responseData.text ||
+          responseData.response ||
+          responseData.message ||
+          responseData.data ||
+          JSON.stringify(responseData, null, 2);
+      }
+
+      return res.json({
+        output: extractedText || 'Message processed by n8n workflow.',
+        raw: responseData,
+        sessionId: currentSessionId,
+      });
+    }
+
+    // If n8n workflow errored (e.g. 500 "Error in workflow" in n8n Cloud), provide graceful fallback
+    const n8nErrorMessage =
+      n8nResult.data?.message || n8nResult.data?.error || `status ${n8nResult.status}`;
+
+    console.warn(`n8n webhook encountered workflow error (${n8nErrorMessage}). Using fallback response.`);
+
+    let fallbackText = '';
+    if (hasApiKey) {
+      try {
+        const fallbackPrompt = `You are the AI Coding Assistant for CodeZenith Smart Learning Portal, answering on behalf of the user's coding chatbot.
+Context: ${context ? JSON.stringify(context) : 'Software engineering & coding practice'}
+Student asks: "${textToSend}"
+
+Please provide an encouraging, technically sound, and well-formatted answer with code snippets where helpful. Under 200 words.`;
+
+        const aiResponse = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: fallbackPrompt,
+        });
+        fallbackText = aiResponse.text || '';
+      } catch (geminiErr) {
+        console.error('Fallback Gemini generation failed:', geminiErr);
+      }
+    }
+
+    if (!fallbackText) {
+      fallbackText = `I received your question: "${textToSend}". To get personalized responses from your n8n workflow, make sure all nodes (such as OpenAI/Gemini/Agent credentials) are configured and active in your n8n canvas at amrutha07.app.n8n.cloud.`;
+    }
+
+    return res.json({
+      output: fallbackText,
+      n8nNotice: `Note: Your n8n workflow at amrutha07.app.n8n.cloud returned '${n8nErrorMessage}' during execution. Check your n8n Cloud Execution History to debug node credentials. Answering via CodeZenith AI in the meantime!`,
+      sessionId: currentSessionId,
+      fallbackUsed: true,
+    });
+  } catch (error: any) {
+    console.error('Error handling n8n chat request:', error);
+    return res.json({
+      output: `I received your message. There was a connection issue contacting your n8n webhook (${error.message || 'Network error'}). Please verify the webhook URL and workflow status in n8n Cloud.`,
+      error: error.message,
+    });
+  }
+});
+
+
+
 // Setup Vite middleware in dev or static files in prod
 async function startServer() {
   if (process.env.NODE_ENV === 'production') {

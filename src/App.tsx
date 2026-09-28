@@ -12,6 +12,7 @@ import { PlaygroundView } from './components/PlaygroundView';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { DailySprintModal } from './components/DailySprintModal';
 import { AiProblemGeneratorModal } from './components/AiProblemGeneratorModal';
+import { N8nChatWidget } from './components/N8nChatWidget';
 import { PRACTICE_PROBLEMS } from './data/practiceProblems';
 import { useProgress } from './hooks/useProgress';
 import { Problem } from './types';
@@ -24,6 +25,7 @@ export default function App() {
   // Modals state
   const [isDailySprintOpen, setIsDailySprintOpen] = useState<boolean>(false);
   const [isAiGeneratorOpen, setIsAiGeneratorOpen] = useState<boolean>(false);
+  const [isN8nChatOpen, setIsN8nChatOpen] = useState<boolean>(false);
 
   // User Progress Hook
   const { progress, recordSolved, toggleBookmark } = useProgress();
@@ -61,6 +63,7 @@ export default function App() {
         progress={progress}
         onOpenDailySprint={() => setIsDailySprintOpen(true)}
         onOpenAiGenerator={() => setIsAiGeneratorOpen(true)}
+        onOpenN8nChat={() => setIsN8nChatOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -126,6 +129,18 @@ export default function App() {
         isOpen={isAiGeneratorOpen}
         onClose={() => setIsAiGeneratorOpen(false)}
         onProblemGenerated={handleProblemGenerated}
+      />
+
+      {/* Floating n8n AI Chatbot Widget */}
+      <N8nChatWidget
+        isOpen={isN8nChatOpen}
+        onOpen={() => setIsN8nChatOpen(true)}
+        onClose={() => setIsN8nChatOpen(false)}
+        currentContext={{
+          activeTab,
+          problemTitle: currentProblem?.title,
+          subject: currentProblem?.subjectTitle,
+        }}
       />
     </div>
   );
