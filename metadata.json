@@ -1,0 +1,6 @@
+{
+  "name": "CodeZenith Smart Learning Portal",
+  "description": "Smart coding academy and practice portal featuring multi-subject curricula, real-time code sandbox, interactive test runner, and intelligent AI tutoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
